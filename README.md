@@ -4,7 +4,7 @@ linking to external resources instead of including content in-line.
 See 'release/text/readme.html' for the end user read-me.
 -->
 
-Blender
+GoBlender
 =======
 
 Blender is the free and open source 3D creation suite.
@@ -29,7 +29,7 @@ Development
 - [Developer Documentation](https://developer.blender.org/docs/)
 
 
-License
+GoBlender
 -------
 
 Blender as a whole is licensed under the GNU General Public License, Version 3.
