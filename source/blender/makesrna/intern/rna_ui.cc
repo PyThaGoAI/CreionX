@@ -464,6 +464,11 @@ static int rna_UIList_filter_const_FILTER_ITEM_get(PointerRNA * /*ptr*/)
   return UILST_FLT_ITEM;
 }
 
+static int rna_UIList_item_never_show(PointerRNA * /*ptr*/)
+{
+  return UILST_FLT_ITEM_NEVER_SHOW;
+}
+
 static IDProperty **rna_UIList_idprops(PointerRNA *ptr)
 {
   uiList *ui_list = (uiList *)ptr->data;
@@ -1495,12 +1500,12 @@ static void rna_UILayout_units_y_set(PointerRNA *ptr, float value)
 
 static int rna_UILayout_emboss_get(PointerRNA *ptr)
 {
-  return uiLayoutGetEmboss(static_cast<uiLayout *>(ptr->data));
+  return int(uiLayoutGetEmboss(static_cast<uiLayout *>(ptr->data)));
 }
 
 static void rna_UILayout_emboss_set(PointerRNA *ptr, int value)
 {
-  uiLayoutSetEmboss(static_cast<uiLayout *>(ptr->data), eUIEmbossType(value));
+  uiLayoutSetEmboss(static_cast<uiLayout *>(ptr->data), blender::ui::EmbossType(value));
 }
 
 static bool rna_UILayout_property_split_get(PointerRNA *ptr)
@@ -1663,11 +1668,23 @@ static void rna_def_ui_layout(BlenderRNA *brna)
   };
 
   static const EnumPropertyItem emboss_items[] = {
-      {UI_EMBOSS, "NORMAL", 0, "Regular", "Draw standard button emboss style"},
-      {UI_EMBOSS_NONE, "NONE", 0, "None", "Draw only text and icons"},
-      {UI_EMBOSS_PULLDOWN, "PULLDOWN_MENU", 0, "Pulldown Menu", "Draw pulldown menu style"},
-      {UI_EMBOSS_PIE_MENU, "RADIAL_MENU", 0, "Pie Menu", "Draw radial menu style"},
-      {UI_EMBOSS_NONE_OR_STATUS,
+      {int(blender::ui::EmbossType::Emboss),
+       "NORMAL",
+       0,
+       "Regular",
+       "Draw standard button emboss style"},
+      {int(blender::ui::EmbossType::None), "NONE", 0, "None", "Draw only text and icons"},
+      {int(blender::ui::EmbossType::Pulldown),
+       "PULLDOWN_MENU",
+       0,
+       "Pulldown Menu",
+       "Draw pulldown menu style"},
+      {int(blender::ui::EmbossType::PieMenu),
+       "RADIAL_MENU",
+       0,
+       "Pie Menu",
+       "Draw radial menu style"},
+      {int(blender::ui::EmbossType::NoneOrStatus),
        "NONE_OR_STATUS",
        0,
        "None or Status",
@@ -1706,6 +1723,10 @@ static void rna_def_ui_layout(BlenderRNA *brna)
   RNA_def_property_enum_items(prop, rna_enum_operator_context_items);
   RNA_def_property_enum_funcs(
       prop, "rna_UILayout_op_context_get", "rna_UILayout_op_context_set", nullptr);
+  RNA_def_property_ui_text(prop,
+                           "Operator Context",
+                           "Typically set to 'INVOKE_REGION_WIN', except some cases "
+                           "in :class:`bpy.types.Menu` when it's set to 'EXEC_REGION_WIN'.");
 
   prop = RNA_def_property(srna, "enabled", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_funcs(prop, "rna_UILayout_enabled_get", "rna_UILayout_enabled_set");
@@ -2103,7 +2124,7 @@ static void rna_def_uilist(BlenderRNA *brna)
       func, "property", nullptr, 0, "", "Identifier of property in data, for the collection");
   RNA_def_parameter_flags(parm, PropertyFlag(0), PARM_REQUIRED);
   prop = RNA_def_property(func, "filter_flags", PROP_INT, PROP_UNSIGNED);
-  RNA_def_property_flag(prop, PropertyFlag(PARM_REQUIRED | PROP_DYNAMIC));
+  RNA_def_property_flag(prop, PROP_DYNAMIC);
   RNA_def_property_array(prop, 1); /* XXX Dummy value, default 0 does not work */
   RNA_def_property_ui_text(prop,
                            "",
@@ -2112,7 +2133,7 @@ static void rna_def_uilist(BlenderRNA *brna)
                            "lower 16 bits for custom usages)");
   RNA_def_function_output(func, prop);
   prop = RNA_def_property(func, "filter_neworder", PROP_INT, PROP_UNSIGNED);
-  RNA_def_property_flag(prop, PropertyFlag(PARM_REQUIRED | PROP_DYNAMIC));
+  RNA_def_property_flag(prop, PROP_DYNAMIC);
   RNA_def_property_array(prop, 1); /* XXX Dummy value, default 0 does not work */
   RNA_def_property_ui_text(
       prop,
@@ -2130,6 +2151,11 @@ static void rna_def_uilist(BlenderRNA *brna)
       "FILTER_ITEM",
       "The value of the reserved bitflag 'FILTER_ITEM' (in filter_flags values)");
   RNA_def_property_int_funcs(prop, "rna_UIList_filter_const_FILTER_ITEM_get", nullptr, nullptr);
+  RNA_def_property_clear_flag(prop, PROP_EDITABLE);
+
+  prop = RNA_def_property(srna, "bitflag_item_never_show", PROP_INT, PROP_UNSIGNED);
+  RNA_def_property_ui_text(prop, "ITEM_NEVER_SHOW", "Skip the item from displaying in the list");
+  RNA_def_property_int_funcs(prop, "rna_UIList_item_never_show", nullptr, nullptr);
   RNA_def_property_clear_flag(prop, PROP_EDITABLE);
 }
 

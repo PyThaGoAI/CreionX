@@ -7,7 +7,10 @@
  */
 
 #include <chrono>
+#include <condition_variable>
 #include <thread>
+
+#include "BLI_mutex.hh"
 
 #include "vk_device.hh"
 
@@ -17,6 +20,12 @@ namespace blender::gpu {
 /** \name Render graph
  * \{ */
 
+struct VKRenderGraphWait {
+  blender::Mutex is_submitted_mutex;
+  std::condition_variable_any is_submitted_condition;
+  bool is_submitted;
+};
+
 struct VKRenderGraphSubmitTask {
   render_graph::VKRenderGraph *render_graph;
   uint64_t timeline;
@@ -24,7 +33,8 @@ struct VKRenderGraphSubmitTask {
   VkPipelineStageFlags wait_dst_stage_mask;
   VkSemaphore wait_semaphore;
   VkSemaphore signal_semaphore;
-  bool *is_submitted_ptr;
+  VkFence signal_fence;
+  VKRenderGraphWait *wait_for_submission;
 };
 
 TimelineValue VKDevice::render_graph_submit(render_graph::VKRenderGraph *render_graph,
@@ -33,7 +43,8 @@ TimelineValue VKDevice::render_graph_submit(render_graph::VKRenderGraph *render_
                                             bool wait_for_completion,
                                             VkPipelineStageFlags wait_dst_stage_mask,
                                             VkSemaphore wait_semaphore,
-                                            VkSemaphore signal_semaphore)
+                                            VkSemaphore signal_semaphore,
+                                            VkFence signal_fence)
 {
   if (render_graph->is_empty()) {
     render_graph->reset();
@@ -47,13 +58,15 @@ TimelineValue VKDevice::render_graph_submit(render_graph::VKRenderGraph *render_
   submit_task->wait_dst_stage_mask = wait_dst_stage_mask;
   submit_task->wait_semaphore = wait_semaphore;
   submit_task->signal_semaphore = signal_semaphore;
-  submit_task->is_submitted_ptr = nullptr;
+  submit_task->signal_fence = signal_fence;
+  submit_task->wait_for_submission = nullptr;
+
   /* We need to wait for submission as otherwise the signal semaphore can still not be in an
    * initial state. */
   const bool wait_for_submission = signal_semaphore != VK_NULL_HANDLE && !wait_for_completion;
-  bool is_submitted = false;
+  VKRenderGraphWait wait_condition{};
   if (wait_for_submission) {
-    submit_task->is_submitted_ptr = &is_submitted;
+    submit_task->wait_for_submission = &wait_condition;
   }
   TimelineValue timeline = submit_task->timeline = submit_to_device ? ++timeline_value_ :
                                                                       timeline_value_ + 1;
@@ -64,10 +77,8 @@ TimelineValue VKDevice::render_graph_submit(render_graph::VKRenderGraph *render_
   submit_task = nullptr;
 
   if (wait_for_submission) {
-    while (!is_submitted) {
-      using namespace std::chrono_literals;
-      std::this_thread::sleep_for(1ns);
-    }
+    std::unique_lock<blender::Mutex> lock(wait_condition.is_submitted_mutex);
+    wait_condition.is_submitted_condition.wait(lock, [&] { return wait_condition.is_submitted; });
   }
 
   if (wait_for_completion) {
@@ -224,10 +235,16 @@ void VKDevice::submission_runner(TaskPool *__restrict pool, void *task_data)
 
       {
         std::scoped_lock lock_queue(*device->queue_mutex_);
-        vkQueueSubmit(device->vk_queue_, submit_infos.size(), submit_infos.data(), VK_NULL_HANDLE);
+        vkQueueSubmit(device->vk_queue_,
+                      submit_infos.size(),
+                      submit_infos.data(),
+                      submit_task->signal_fence);
       }
-      if (submit_task->is_submitted_ptr != nullptr) {
-        *submit_task->is_submitted_ptr = true;
+      if (submit_task->wait_for_submission != nullptr) {
+        std::unique_lock<blender::Mutex> lock(
+            submit_task->wait_for_submission->is_submitted_mutex);
+        submit_task->wait_for_submission->is_submitted = true;
+        submit_task->wait_for_submission->is_submitted_condition.notify_one();
       }
       vk_command_buffer = VK_NULL_HANDLE;
       for (VkCommandBuffer vk_command_buffer : unsubmitted_command_buffers) {

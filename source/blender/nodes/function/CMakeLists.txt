@@ -8,6 +8,8 @@ set(INC
   ../intern
   ../../editors/include
   ../../makesrna
+  # RNA_prototypes.hh
+  ${CMAKE_BINARY_DIR}/source/blender/makesrna
 )
 
 set(INC_SYS
@@ -18,6 +20,7 @@ set(SRC
   nodes/node_fn_align_rotation_to_vector.cc
   nodes/node_fn_axes_to_rotation.cc
   nodes/node_fn_axis_angle_to_rotation.cc
+  nodes/node_fn_bit_math.cc
   nodes/node_fn_boolean_math.cc
   nodes/node_fn_combine_color.cc
   nodes/node_fn_combine_matrix.cc
@@ -37,6 +40,7 @@ set(SRC
   nodes/node_fn_integer_math.cc
   nodes/node_fn_invert_matrix.cc
   nodes/node_fn_invert_rotation.cc
+  nodes/node_fn_match_string.cc
   nodes/node_fn_matrix_determinant.cc
   nodes/node_fn_matrix_multiply.cc
   nodes/node_fn_project_point.cc
@@ -68,6 +72,7 @@ set(LIB
   PRIVATE bf::blenkernel
   PRIVATE bf::blenlib
   PRIVATE bf::blentranslation
+  PRIVATE bf::blenloader
   PRIVATE bf::dna
   PRIVATE bf::functions
   PRIVATE bf::imbuf

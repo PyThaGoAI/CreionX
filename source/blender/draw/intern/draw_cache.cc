@@ -72,37 +72,11 @@ namespace blender::draw {
 
 void DRW_vertbuf_create_wiredata(blender::gpu::VertBuf *vbo, const int vert_len)
 {
-  static struct {
-    uint wd;
-  } attr_id;
-
-  static const GPUVertFormat format = [&]() {
-    GPUVertFormat format{};
-    /* initialize vertex format */
-    if (!GPU_crappy_amd_driver()) {
-      /* Some AMD drivers strangely crash with a vbo with this format. */
-      attr_id.wd = GPU_vertformat_attr_add(
-          &format, "wd", GPU_COMP_U8, 1, GPU_FETCH_INT_TO_FLOAT_UNIT);
-    }
-    else {
-      attr_id.wd = GPU_vertformat_attr_add(&format, "wd", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
-    }
-    return format;
-  }();
-
+  static const GPUVertFormat format = GPU_vertformat_from_attribute(
+      "wd", GPU_COMP_F32, 1, GPU_FETCH_FLOAT);
   GPU_vertbuf_init_with_format(*vbo, format);
   GPU_vertbuf_data_alloc(*vbo, vert_len);
-
-  if (GPU_vertbuf_get_format(vbo)->stride == 1) {
-    memset(vbo->data<uint8_t>().data(), 0xFF, size_t(vert_len));
-  }
-  else {
-    GPUVertBufRaw wd_step;
-    GPU_vertbuf_attr_get_raw_data(vbo, attr_id.wd, &wd_step);
-    for (int i = 0; i < vert_len; i++) {
-      *((float *)GPU_vertbuf_raw_step(&wd_step)) = 1.0f;
-    }
-  }
+  vbo->data<float>().fill(1.0f);
 }
 
 }  // namespace blender::draw
@@ -173,27 +147,6 @@ blender::gpu::Batch *DRW_cache_object_surface_get(Object *ob)
     default:
       return nullptr;
   }
-}
-
-blender::gpu::VertBuf *DRW_cache_object_pos_vertbuf_get(Object *ob)
-{
-  using namespace blender::draw;
-  Mesh *mesh = BKE_object_get_evaluated_mesh_no_subsurf_unchecked(ob);
-
-  if (mesh) {
-    /* For drawing we want either the base mesh if GPU subdivision is enabled, or the
-     * tessellated mesh if GPU subdivision is disabled. */
-    if (!BKE_subsurf_modifier_has_gpu_subdiv(mesh)) {
-      mesh = BKE_mesh_wrapper_ensure_subdivision(mesh);
-    }
-    return DRW_mesh_batch_cache_pos_vertbuf_get(*mesh);
-  }
-
-  if (ob->type == OB_MESH) {
-    return DRW_mesh_batch_cache_pos_vertbuf_get(DRW_object_get_data_for_drawing<Mesh>(*ob));
-  }
-
-  return nullptr;
 }
 
 Span<blender::gpu::Batch *> DRW_cache_object_surface_material_get(
@@ -424,7 +377,9 @@ blender::gpu::Batch *DRW_cache_lattice_wire_get(Object *ob, bool use_weight)
   Lattice &lt = DRW_object_get_data_for_drawing<Lattice>(*ob);
   int actdef = -1;
 
-  if (use_weight && !BLI_listbase_is_empty(&lt.vertex_group_names) && lt.editlatt->latt->dvert) {
+  if (use_weight && !BLI_listbase_is_empty(&lt.vertex_group_names) && lt.editlatt &&
+      lt.editlatt->latt->dvert)
+  {
     actdef = lt.vertex_group_active_index - 1;
   }
 
@@ -665,7 +620,7 @@ void DRW_batch_cache_free_old(Object *ob, int ctime)
 void DRW_cdlayer_attr_aliases_add(GPUVertFormat *format,
                                   const char *base_name,
                                   const int data_type,
-                                  const char *layer_name,
+                                  const blender::StringRef layer_name,
                                   bool is_active_render,
                                   bool is_active_layer)
 {

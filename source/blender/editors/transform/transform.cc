@@ -78,7 +78,8 @@ bool transdata_check_local_islands(TransInfo *t, short around)
   if (t->options & (CTX_CURSOR | CTX_TEXTURE_SPACE)) {
     return false;
   }
-  return ((around == V3D_AROUND_LOCAL_ORIGINS) && ELEM(t->obedit_type, OB_MESH));
+  return ((around == V3D_AROUND_LOCAL_ORIGINS) &&
+          ELEM(t->obedit_type, OB_MESH, OB_GREASE_PENCIL, OB_CURVES));
 }
 
 /** \} */
@@ -626,7 +627,8 @@ static bool transform_modal_item_poll(const wmOperator *op, int value)
     }
     case TFM_MODAL_INSERTOFS_TOGGLE_DIR:
     case TFM_MODAL_NODE_ATTACH_ON:
-    case TFM_MODAL_NODE_ATTACH_OFF: {
+    case TFM_MODAL_NODE_ATTACH_OFF:
+    case TFM_MODAL_NODE_FRAME: {
       if (t->spacetype != SPACE_NODE) {
         return false;
       }
@@ -753,13 +755,13 @@ wmKeyMap *transform_modal_keymap(wmKeyConfig *keyconf)
        0,
        "Decrease Proportional Influence",
        ""},
+      {TFM_MODAL_PROPSIZE, "PROPORTIONAL_SIZE", 0, "Adjust Proportional Influence", ""},
       {TFM_MODAL_AUTOIK_LEN_INC, "AUTOIK_CHAIN_LEN_UP", 0, "Increase Max AutoIK Chain Length", ""},
       {TFM_MODAL_AUTOIK_LEN_DEC,
        "AUTOIK_CHAIN_LEN_DOWN",
        0,
        "Decrease Max AutoIK Chain Length",
        ""},
-      {TFM_MODAL_PROPSIZE, "PROPORTIONAL_SIZE", 0, "Adjust Proportional Influence", ""},
       {TFM_MODAL_INSERTOFS_TOGGLE_DIR,
        "INSERTOFS_TOGGLE_DIR",
        0,
@@ -777,6 +779,7 @@ wmKeyMap *transform_modal_keymap(wmKeyConfig *keyconf)
       {TFM_MODAL_AUTOCONSTRAINTPLANE, "AUTOCONSTRAINPLANE", 0, "Automatic Constraint Plane", ""},
       {TFM_MODAL_PRECISION, "PRECISION", 0, "Precision Mode", ""},
       {TFM_MODAL_PASSTHROUGH_NAVIGATE, "PASSTHROUGH_NAVIGATE", 0, "Navigate", ""},
+      {TFM_MODAL_NODE_FRAME, "NODE_FRAME", 0, "Attach/Detach Frame", ""},
       {0, nullptr, 0, nullptr, nullptr},
   };
 
@@ -1223,6 +1226,10 @@ wmOperatorStatus transformEvent(TransInfo *t, wmOperator *op, const wmEvent *eve
         t->modifiers &= ~MOD_NODE_ATTACH;
         t->redraw |= TREDRAW_HARD;
         break;
+      case TFM_MODAL_NODE_FRAME:
+        t->modifiers |= MOD_NODE_FRAME;
+        t->redraw |= TREDRAW_HARD;
+        break;
 
       case TFM_MODAL_AUTOCONSTRAINT:
       case TFM_MODAL_AUTOCONSTRAINTPLANE:
@@ -1369,6 +1376,9 @@ wmOperatorStatus transformEvent(TransInfo *t, wmOperator *op, const wmEvent *eve
           t->redraw |= TREDRAW_HARD;
         }
         break;
+      default: {
+        break;
+      }
     }
 
     /* Confirm transform if launch key is released after mouse move. */
@@ -1395,7 +1405,7 @@ wmOperatorStatus transformEvent(TransInfo *t, wmOperator *op, const wmEvent *eve
      * the region twice doesn't add any overhead. */
     WM_window_status_area_tag_redraw(CTX_wm_window(t->context));
 
-    if (t->helpline != HLP_ERROR && t->helpline != HLP_ERROR_DASH) {
+    if (!ELEM(t->helpline, HLP_ERROR, HLP_ERROR_DASH)) {
       ED_workspace_status_text(t->context, nullptr);
     }
   }
@@ -1408,7 +1418,7 @@ wmOperatorStatus transformEvent(TransInfo *t, wmOperator *op, const wmEvent *eve
 
 bool calculateTransformCenter(bContext *C, int centerMode, float cent3d[3], float cent2d[2])
 {
-  TransInfo *t = static_cast<TransInfo *>(MEM_callocN(sizeof(TransInfo), "TransInfo data"));
+  TransInfo *t = MEM_callocN<TransInfo>("TransInfo data");
   bool success;
 
   t->context = C;
@@ -1995,7 +2005,8 @@ bool initTransform(bContext *C, TransInfo *t, wmOperator *op, const wmEvent *eve
               (ELEM(kmi->type, EVT_LEFTSHIFTKEY, EVT_RIGHTSHIFTKEY) &&
                (event->modifier & KM_SHIFT)) ||
               (ELEM(kmi->type, EVT_LEFTALTKEY, EVT_RIGHTALTKEY) && (event->modifier & KM_ALT)) ||
-              ((kmi->type == EVT_OSKEY) && (event->modifier & KM_OSKEY)))
+              ((kmi->type == EVT_OSKEY) && (event->modifier & KM_OSKEY)) ||
+              ((kmi->type == EVT_HYPER) && (event->modifier & KM_HYPER)))
           {
             t->modifiers &= ~MOD_NODE_ATTACH;
           }

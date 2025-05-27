@@ -747,7 +747,7 @@ def brush_settings(layout, context, brush, popover=False):
         # normal_radius_factor
         layout.prop(brush, "normal_radius_factor", slider=True)
 
-        if context.preferences.experimental.use_sculpt_tools_tilt and capabilities.has_tilt:
+        if capabilities.has_tilt:
             layout.prop(brush, "tilt_strength_factor", slider=True)
 
         row = layout.row(align=True)
@@ -1079,7 +1079,7 @@ def brush_shared_settings(layout, context, brush, popover=False):
             size = True
             strength = True
             strength_pressure = brush.sculpt_capabilities.has_strength_pressure
-            direction = not brush.sculpt_capabilities.has_direction
+            direction = brush.sculpt_capabilities.has_direction
 
     # Vertex Paint #
     if mode == 'PAINT_VERTEX':

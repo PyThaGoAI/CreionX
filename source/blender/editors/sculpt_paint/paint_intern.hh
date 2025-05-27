@@ -22,7 +22,6 @@ enum class PaintMode : int8_t;
 struct ARegion;
 struct bContext;
 struct Brush;
-struct ColorManagedDisplay;
 struct Depsgraph;
 struct Image;
 struct ImagePool;
@@ -57,7 +56,12 @@ namespace ed::sculpt_paint {
 struct PaintStroke;
 struct StrokeCache;
 }  // namespace ed::sculpt_paint
+
+namespace ocio {
+class Display;
+}
 }  // namespace blender
+using ColorManagedDisplay = blender::ocio::Display;
 
 /* paint_stroke.cc */
 
@@ -316,7 +320,7 @@ void paint_2d_stroke(void *ps,
                      float distance,
                      float base_size);
 /**
- * This function expects linear space color values.
+ * This function expects sRGB space color values.
  */
 void paint_2d_bucket_fill(const bContext *C,
                           const float color[3],
@@ -345,12 +349,11 @@ void paint_brush_color_get(Scene *scene,
                            bool invert,
                            float distance,
                            float pressure,
-                           ColorManagedDisplay *display,
+                           const ColorManagedDisplay *display,
                            float r_color[3]);
 bool paint_use_opacity_masking(Brush *brush);
 void paint_brush_init_tex(Brush *brush);
 void paint_brush_exit_tex(Brush *brush);
-bool image_paint_poll(bContext *C);
 
 void PAINT_OT_grab_clone(wmOperatorType *ot);
 void PAINT_OT_sample_color(wmOperatorType *ot);
@@ -483,6 +486,19 @@ bool paint_curve_poll(bContext *C);
 bool facemask_paint_poll(bContext *C);
 
 namespace blender::ed::sculpt_paint {
+
+/**
+ * Determines whether a given symmetry pass is valid.
+ *
+ * Uses the #ePaintSymmetryFlags enum.
+ *
+ * symm is a bit combination of XYZ.
+ * 1 is X; 2 is Y; 3 is XY; 4 is Z; 5 is XZ; 6 is YZ; 7 is XYZ
+ */
+inline bool is_symmetry_iteration_valid(const char i, const char symm)
+{
+  return i == 0 || (symm & i && (symm != 5 || i != 3) && (symm != 6 || !ELEM(i, 3, 5)));
+}
 
 inline float3 symmetry_flip(const float3 &src, const ePaintSymmetryFlags symm)
 {
