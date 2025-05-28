@@ -13,16 +13,6 @@ motion tracking and video editing.
 
 ![Blender screenshot](https://code.blender.org/wp-content/uploads/2018/12/springrg.jpg "Blender screenshot")
 
-Project Pages
--------------
-
-
-
-Development
------------
-
-
-
 
 CreionX
 -------
